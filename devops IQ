@@ -1,0 +1,275 @@
+Write a shell script to find and delete all files in a directory that are older than 30 days.
+=======================================
+#!/bin/bash
+
+# Directory to clean up
+TARGET_DIR="/path/to/directory"
+
+# Number of days to keep files
+DAYS=30
+
+# Find and delete files older than the specified number of days
+find "$TARGET_DIR" -type f -mtime +$DAYS -exec rm -f {} \;
+
+echo "Deleted all files older than $DAYS days in $TARGET_DIR."
+
+
+2.Create a script to monitor the disk usage of a server. If usage exceeds 80%, log the details to a file and send an alert email.
+=================================================================================================================================
+#!/bin/bash
+THRESHOLD=80   # Set threshold for disk usage
+LOG_FILE="/path/to/disk_usage_alert.log"   # Log file to record high usage events
+TO_EMAIL="your-email@example.com" # Email settings
+SUBJECT="Disk Usage Alert on $(hostname)"
+
+# Check disk usage
+df -h | grep -vE '^Filesystem|tmpfs|cdrom' | awk '{print $5 " " $1}' | while read output; do
+    # Extract the usage percentage and the mount point
+    usage=$(echo $output | awk '{print $1}' | sed 's/%//')
+    partition=$(echo $output | awk '{print $2}')
+    
+    # Check if usage exceeds threshold
+    if [ "$usage" -ge "$THRESHOLD" ]; then
+        # Log the details
+        echo "$(date): Disk usage on $partition is ${usage}%" >> "$LOG_FILE"
+        
+        # Send an email alert
+        MESSAGE="Warning: Disk usage on partition $partition has reached ${usage}% on $(hostname)"
+        echo "$MESSAGE" | mail -s "$SUBJECT" "$TO_EMAIL"
+    fi
+done
+
+=============================
+3.Write a script that renames all .txt files in a directory by appending the current date to the filename.
+==============================================================
+
+
+#!/bin/bash
+
+
+TARGET_DIR="/path/to/directory"   # Directory containing the .txt files
+
+CURRENT_DATE=$(date +%Y-%m-%d)  # Get the current date in YYYY-MM-DD format
+# Loop through all .txt files in the directory
+for file in "$TARGET_DIR"/*.txt; do
+    # Check if the file exists to avoid errors if no .txt files are found
+    if [ -f "$file" ]; then
+        # Extract the filename without the extension
+        BASENAME=$(basename "$file" .txt)
+        
+        # Construct the new filename with the current date appended
+        NEW_NAME="${TARGET_DIR}/${BASENAME}_${CURRENT_DATE}.txt"
+        
+        # Rename the file
+        mv "$file" "$NEW_NAME"
+        
+        echo "Renamed '$file' to '$NEW_NAME'"
+    fi
+done
+
+4.Create a script that checks if a particular service (e.g., httpd or nginx) is running. If not, it should restart the service and log the action.
+================================================================================================================
+#!/bin/bash
+# Service to monitor (e.g., httpd or nginx)
+SERVICE="httpd"
+# Log file to record actions
+LOG_FILE="/var/log/service_monitor.log"
+
+# Check if the service is running
+if ! systemctl is-active --quiet "$SERVICE"; then
+    echo "$(date): $SERVICE is not running. Attempting to restart..." | tee -a "$LOG_FILE"
+    
+    # Attempt to restart the service
+    if sudo systemctl restart "$SERVICE"; then
+        echo "$(date): Successfully restarted $SERVICE." | tee -a "$LOG_FILE"
+    else
+        echo "$(date): Failed to restart $SERVICE." | tee -a "$LOG_FILE"
+    fi
+else
+    echo "$(date): $SERVICE is running normally." >> "$LOG_FILE"
+fi
+
+5. Write a script to monitor CPU and memory usage every minute and log the details if CPU usage is above 90% or memory usage exceeds 75%.
+========================================================================================================
+#!/bin/bash
+
+# Log file to record high usage events
+LOG_FILE="/var/log/resource_monitor.log"
+# CPU and memory usage thresholds
+CPU_THRESHOLD=90
+MEMORY_THRESHOLD=75
+
+# Function to get the current CPU usage percentage
+get_cpu_usage() {
+    # Calculate the average CPU usage over a short interval
+    top -bn1 | grep "Cpu(s)" | awk '{print 100 - $8}'
+}
+
+# Function to get the current memory usage percentage
+get_memory_usage() {
+    # Calculate memory usage using free command
+    free | grep Mem | awk '{print ($3/$2) * 100.0}'
+}
+
+# Get current CPU and memory usage
+CPU_USAGE=$(get_cpu_usage)
+MEMORY_USAGE=$(get_memory_usage)
+
+# Check if CPU or memory usage exceeds the threshold
+if (( $(echo "$CPU_USAGE > $CPU_THRESHOLD" | bc -l) )) || (( $(echo "$MEMORY_USAGE > $MEMORY_THRESHOLD" | bc -l) )); then
+    echo "$(date): High resource usage detected" >> "$LOG_FILE"
+    echo "CPU Usage: ${CPU_USAGE}% (Threshold: ${CPU_THRESHOLD}%)" >> "$LOG_FILE"
+    echo "Memory Usage: ${MEMORY_USAGE}% (Threshold: ${MEMORY_THRESHOLD}%)" >> "$LOG_FILE"
+    echo "---------------------------------------" >> "$LOG_FILE"
+fi
+
+
+6.Write a script that performs a backup of a specified directory and compresses it with the current date in the filename. Schedule it to run daily using cron.
+============================================================================================================================================================
+#!/bin/bash
+# Directory to back up
+SOURCE_DIR="/path/to/source_directory"
+# Directory to save backups
+BACKUP_DIR="/path/to/backup_directory"
+# Get the current date in YYYY-MM-DD format
+CURRENT_DATE=$(date +%Y-%m-%d)
+# Backup file name with the current date
+BACKUP_FILE="${BACKUP_DIR}/backup_${CURRENT_DATE}.tar.gz"
+
+# Create the backup directory if it doesn't exist
+mkdir -p "$BACKUP_DIR"
+
+# Perform the backup and compress the directory
+tar -czf "$BACKUP_FILE" "$SOURCE_DIR"
+
+# Log the backup operation
+echo "$(date): Backup of $SOURCE_DIR completed. Saved to $BACKUP_FILE" >> /var/log/backup.log
+
+7.Create a script to check the availability of a list of websites. For each site, if it's unreachable, log the URL and send an alert.
+=======================================================================================================
+#!/bin/bash
+
+# File containing the list of URLs to check
+URL_LIST="/path/to/urls.txt"
+# Log file to record unreachable URLs
+LOG_FILE="/var/log/unreachable_websites.log"
+# Email settings
+TO_EMAIL="your-email@example.com"
+SUBJECT="Website Availability Alert"
+
+# Function to check website availability
+check_website() {
+    local url=$1
+    # Use curl to check if the website is reachable
+    if ! curl -Is "$url" --connect-timeout 10 | head -n 1 | grep -q "200\|301\|302"; then
+        # If unreachable, log the URL and send an alert email
+        echo "$(date): $url is unreachable" | tee -a "$LOG_FILE"
+        echo "$url is currently unreachable" | mail -s "$SUBJECT" "$TO_EMAIL"
+    fi
+}
+
+# Read each URL from the file and check its availability
+while IFS= read -r url; do
+    # Check if the line is not empty
+    if [[ -n "$url" ]]; then
+        check_website "$url"
+    fi
+done < "$URL_LIST"
+
+8.Write a Python script using boto3 to list all S3 buckets in an AWS account and their respective sizes.
+=============================================================================
+import boto3
+from botocore.exceptions import NoCredentialsError, PartialCredentialsError
+
+def get_s3_buckets_sizes():
+    # Initialize boto3 S3 client
+    s3_client = boto3.client('s3')
+
+    try:
+        # List all S3 buckets
+        buckets = s3_client.list_buckets()['Buckets']
+        
+        # Print header
+        print("Bucket Name | Size (Bytes)")
+        print("-" * 30)
+
+        # Initialize resource for size calculations
+        s3_resource = boto3.resource('s3')
+        
+        for bucket in buckets:
+            bucket_name = bucket['Name']
+            bucket_size = 0
+
+            # Get the bucket object
+            s3_bucket = s3_resource.Bucket(bucket_name)
+            
+            # Iterate over all objects in the bucket to calculate total size
+            for obj in s3_bucket.objects.all():
+                bucket_size += obj.size
+
+            # Print bucket name and size in bytes
+            print(f"{bucket_name} | {bucket_size}")
+
+    except NoCredentialsError:
+        print("Error: AWS credentials not found.")
+    except PartialCredentialsError:
+        print("Error: Incomplete AWS credentials.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+# Run the function
+get_s3_buckets_sizes()
+
+9.Develop a script that starts and stops EC2 instances based on a schedule (e.g., start at 8 AM and stop at 8 PM).
+=====================================================================
+import boto3
+from datetime import datetime
+
+# Define your schedule
+START_HOUR = 8   # 8 AM
+STOP_HOUR = 20   # 8 PM
+
+# Define instance IDs to control
+INSTANCE_IDS = ['i-0123456789abcdef0', 'i-0abcdef1234567890']
+
+# Initialize boto3 EC2 client
+ec2_client = boto3.client('ec2')
+
+def start_instances(instance_ids):
+    """Start EC2 instances."""
+    ec2_client.start_instances(InstanceIds=instance_ids)
+    print(f"Started instances: {instance_ids}")
+
+def stop_instances(instance_ids):
+    """Stop EC2 instances."""
+    ec2_client.stop_instances(InstanceIds=instance_ids)
+    print(f"Stopped instances: {instance_ids}")
+
+def main():
+    # Get the current hour in 24-hour format
+    current_hour = datetime.now().hour
+
+    # Determine whether to start or stop instances based on the current hour
+    if current_hour == START_HOUR:
+        start_instances(INSTANCE_IDS)
+    elif current_hour == STOP_HOUR:
+        stop_instances(INSTANCE_IDS)
+    else:
+        print(f"No action needed at {current_hour}:00.")
+
+if __name__ == "__main__":
+    main()
+
+10.Create a script that monitors a specified directory and automatically deletes any files larger than 100 MB.
+===========================================================================================================
+#!/bin/bash
+
+# Directory to monitor
+MONITOR_DIR="/path/to/your/directory"
+# Size threshold in MB
+SIZE_THRESHOLD=100
+# Log file to record deleted files
+LOG_FILE="/var/log/large_file_cleanup.log"
+
+# Find and delete files larger than the specified threshold
+find "$MONITOR_DIR" -type f -size +"${SIZE_THRESHOLD}M" -exec rm -v {} \; | tee -a "$LOG_FILE"
